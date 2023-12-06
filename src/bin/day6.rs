@@ -4,46 +4,46 @@ fn main() {
     println!("Part2: {}", part2(input));
 }
 
-fn part1(input: &str) -> u32 {
+fn compute_one((t, d): (u64, u64)) -> u64 {
+    let mut i = 1;
+    while i * (t - i) <= d {
+        i += 1;
+    }
+    t - i - i + 1
+}
+
+fn part1(input: &str) -> u64 {
     let mut lines = input.lines().map(|line| {
         line.split_whitespace()
             .skip(1)
-            .map(|s| s.parse::<u32>().unwrap())
+            .map(|s| s.parse::<u64>().unwrap())
     });
-    // let mut time = lines.next().unwrap().split_whitespace().skip(1);
-    // let mut distance = lines.next().unwrap().split_whitespace().skip(1);
-    let mut paired = lines.next().unwrap().zip(lines.next().unwrap());
-    paired
-        .map(|(t, d)| {
-            let mut count = 0;
-            for i in 1..t {
-                if i * (t - i) > d {
-                    count += 1;
-                }
-            }
-            count
-        })
-        .fold(1, |acc, n| acc * n)
+    lines
+        .next()
+        .unwrap()
+        .zip(lines.next().unwrap())
+        .map(compute_one)
+        .product()
 }
 
 fn part2(input: &str) -> u64 {
-    let mut lines = input.lines().map(|line| {
-        line.split_whitespace()
-            .skip(1)
-            .fold("".to_string(), |acc, s| acc + s)
-            .parse::<u64>()
-            .unwrap()
-    });
-    // let mut time = lines.next().unwrap().split_whitespace().skip(1);
-    // let mut distance = lines.next().unwrap().split_whitespace().skip(1);
-    let (t, d) = (lines.next().unwrap(), lines.next().unwrap());
-    let mut count = 0;
-    for i in 1..t {
-        if i * (t - i) > d {
-            count += 1;
-        }
-    }
-    count
+    compute_one(
+        input
+            .lines()
+            .map(|line| {
+                line.split_whitespace()
+                    .skip(1)
+                    .fold("".to_string(), |acc, s| acc + s)
+                    .parse::<u64>()
+                    .unwrap()
+            })
+            .collect::<Vec<_>>()
+            .chunks(2)
+            .map(|v| (v[0], v[1]))
+            .take(1)
+            .next()
+            .unwrap(),
+    )
 }
 
 #[test]
@@ -52,4 +52,11 @@ fn example() {
 Distance:  9  40  200";
     assert_eq!(part1(example), 288);
     assert_eq!(part2(example), 71503)
+}
+
+#[test]
+fn answer() {
+    let input: &str = include_str!("../../inputs/day6.txt");
+    assert_eq!(part1(input), 781200);
+    assert_eq!(part2(input), 49240091);
 }
