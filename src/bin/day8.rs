@@ -1,29 +1,25 @@
 use num::integer::lcm;
 use std::collections::HashMap;
 
-fn main() {
-    let input: &str = include_str!("../../inputs/day8.txt");
-    println!("Part1: {}", part1(input));
-    println!("Part2: {}", part2(input));
-}
+fn parse(input: &str) -> (Vec<char>, HashMap<&str, (&str, &str)>) {
+    let splits = input.split_once("\n\n");
 
-fn part1(input: &str) -> u64 {
-    let mut splits = input.splitn(2, "\n\n");
-    let instructions = splits.next().unwrap().chars().collect::<Vec<char>>();
+    let instructions = splits.unwrap().0.chars().collect::<Vec<char>>();
+
     let nodes = splits
-        .next()
         .unwrap()
+        .1
         .lines()
         .map(|line| {
-            let name = line.split(" = ").next().unwrap();
-            let children = match line
-                .split(" = ")
-                .nth(1)
+            let splits = line.split_once(" = ");
+            let name = splits.unwrap().0;
+            let children = match splits
                 .unwrap()
-                .splitn(2, '(')
-                .nth(1)
+                .1
+                .split_once('(')
                 .unwrap()
-                .splitn(2, ')')
+                .1
+                .split(')')
                 .next()
                 .unwrap()
                 .splitn(2, ", ")
@@ -39,18 +35,25 @@ fn part1(input: &str) -> u64 {
             acc
         });
 
-    let mut curr = "AAA";
+    (instructions, nodes)
+}
+
+fn traverse(
+    instructions: &[char],
+    nodes: &HashMap<&str, (&str, &str)>,
+    start: &str,
+    stop_pred: Box<dyn Fn(&str) -> bool>,
+) -> u64 {
+    let mut curr = start;
     let mut count = 0;
     let mut i = 0;
 
-    while curr != "ZZZ" {
-        // println!("{}", curr);
+    while !stop_pred(curr) {
         curr = match instructions.get(i) {
             Some('L') => nodes.get(curr).unwrap().0,
             Some('R') => nodes.get(curr).unwrap().1,
             _ => panic!("Invalid input"),
         };
-        // println!("{:?}", curr);
         if i == instructions.len() - 1 {
             i = 0;
         } else {
@@ -62,69 +65,36 @@ fn part1(input: &str) -> u64 {
     count
 }
 
-fn part2(input: &str) -> u64 {
-    let mut splits = input.splitn(2, "\n\n");
-    let instructions = splits.next().unwrap().chars().collect::<Vec<char>>();
-    let nodes = splits
-        .next()
-        .unwrap()
-        .lines()
-        .map(|line| {
-            let name = line.split(" = ").next().unwrap();
-            let children = match line
-                .split(" = ")
-                .nth(1)
-                .unwrap()
-                .splitn(2, '(')
-                .nth(1)
-                .unwrap()
-                .splitn(2, ')')
-                .next()
-                .unwrap()
-                .splitn(2, ", ")
-                .collect::<Vec<_>>()[..]
-            {
-                [lt, rt] => (lt, rt),
-                _ => panic!("Invalid input"),
-            };
-            (name, children)
-        })
-        .fold(HashMap::new(), |mut acc, (name, children)| {
-            acc.insert(name, children);
-            acc
-        });
+fn main() {
+    let input: &str = include_str!("../../inputs/day8.txt");
+    println!("Part1: {}", part1(input));
+    println!("Part2: {}", part2(input));
+}
 
-    let curr_nodes = nodes
+fn part1(input: &str) -> u64 {
+    let (instructions, nodes) = parse(input);
+
+    traverse(&instructions, &nodes, "AAA", Box::new(|name| name == "ZZZ"))
+}
+
+fn part2(input: &str) -> u64 {
+    let (instructions, nodes) = parse(input);
+
+    nodes
         .iter()
         .filter_map(|(name, _)| {
             if name.ends_with('A') {
-                Some(name.to_string())
+                Some(traverse(
+                    &instructions,
+                    &nodes,
+                    name,
+                    Box::new(|name| name.ends_with('Z')),
+                ))
             } else {
                 None
             }
         })
-        .collect::<Vec<_>>();
-    let steps = curr_nodes.iter().map(|name| {
-        let mut curr = name.as_str();
-        let mut count = 0;
-        let mut i = 0;
-        while !curr.ends_with('Z') {
-            curr = match instructions.get(i) {
-                Some('L') => nodes.get(curr).unwrap().0,
-                Some('R') => nodes.get(curr).unwrap().1,
-                _ => panic!("Invalid input"),
-            };
-            if i == instructions.len() - 1 {
-                i = 0;
-            } else {
-                i += 1;
-            }
-            count += 1;
-        }
-        count
-    });
-
-    steps.fold(1, |acc, x| lcm(acc, x as u64))
+        .fold(1, lcm)
 }
 
 #[test]
