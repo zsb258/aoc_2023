@@ -1,12 +1,10 @@
-use std::collections::VecDeque;
-
 fn main() {
     let input: &str = include_str!("../../inputs/day9.txt");
-    println!("Part1: {}", part1(input));
-    println!("Part2: {}", part2(input));
+    println!("Part1: {}", solve_with(input, &part1_compute));
+    println!("Part2: {}", solve_with(input, &part2_compute));
 }
 
-fn part1(input: &str) -> i64 {
+fn solve_with(input: &str, solver: &dyn Fn(Vec<Vec<i64>>) -> i64) -> i64 {
     input
         .lines()
         .map(|line| {
@@ -14,95 +12,33 @@ fn part1(input: &str) -> i64 {
                 .map(|num| num.parse::<i64>().unwrap())
                 .collect::<Vec<i64>>()
         })
-        .map(compute1)
-        .sum()
-}
-
-fn compute1(nums: Vec<i64>) -> i64 {
-    dbg!(&nums);
-    let mut ready = false;
-    let mut history = VecDeque::new();
-    history.push_front(nums.clone());
-    let mut diff = vec![];
-    let mut curr = nums.clone();
-    while !ready {
-        for i in 1..curr.len() {
-            diff.push(curr[i] - curr[i - 1]);
-        }
-        ready = diff.iter().all(|&x| x == 0);
-        if !ready {
-            history.push_front(diff.clone());
-            curr = diff.clone();
-            diff = vec![];
-        }
-    }
-
-    dbg!(&history);
-
-    let mut row = history.pop_front().unwrap();
-    let mut to_add = row.last().unwrap();
-    let mut val = 0 + to_add;
-    dbg!(&val, &to_add);
-
-    while !history.is_empty() {
-        row = history.pop_front().unwrap();
-        to_add = row.last().unwrap();
-        val += to_add;
-    }
-
-    dbg!(&val);
-
-    val
-}
-
-fn part2(input: &str) -> i64 {
-    input
-        .lines()
-        .map(|line| {
-            line.split_whitespace()
-                .map(|num| num.parse::<i64>().unwrap())
-                .collect::<Vec<i64>>()
+        .map(|nums| {
+            let mut history = vec![nums]; // using as stack
+            loop {
+                let curr = history.last().unwrap();
+                let diff = (1..curr.len())
+                    .map(|i| curr[i] - curr[i - 1])
+                    .collect::<Vec<_>>();
+                if diff.iter().any(|&x| x != 0) {
+                    history.push(diff);
+                } else {
+                    break history;
+                }
+            }
         })
-        .map(compute2)
+        .map(solver)
         .sum()
 }
 
-fn compute2(nums: Vec<i64>) -> i64 {
-    dbg!(&nums);
-    let mut ready = false;
-    let mut history = VecDeque::new();
-    history.push_front(nums.clone());
-    let mut diff = vec![];
-    let mut curr = nums.clone();
-    while !ready {
-        for i in 1..curr.len() {
-            diff.push(curr[i] - curr[i - 1]);
-        }
-        ready = diff.iter().all(|&x| x == 0);
-        if !ready {
-            history.push_front(diff.clone());
-            curr = diff.clone();
-            diff = vec![];
-        }
-    }
+fn part1_compute(history: Vec<Vec<i64>>) -> i64 {
+    history
+        .iter()
+        .rev()
+        .fold(0, |acc, v| acc + v.last().unwrap())
+}
 
-    dbg!(&history);
-
-    let mut row = history.pop_front().unwrap();
-    let mut val = row[0];
-    let mut to_subtract = val;
-    dbg!(&val, &to_subtract);
-
-    while !history.is_empty() {
-        row = history.pop_front().unwrap();
-        val = row[0] - to_subtract;
-        to_subtract = val;
-        dbg!(&val, &to_subtract);
-    }
-
-    dbg!(&val);
-
-    val
+fn part2_compute(history: Vec<Vec<i64>>) -> i64 {
+    history.iter().rev().fold(0, |acc, v| v[0] - acc)
 }
 
 #[test]
@@ -110,13 +46,13 @@ fn example() {
     let example: &str = "0 3 6 9 12 15
 1 3 6 10 15 21
 10 13 16 21 30 45";
-    assert_eq!(part1(example), 114);
-    assert_eq!(part2(example), 2);
+    assert_eq!(solve_with(example, &part1_compute), 114);
+    assert_eq!(solve_with(example, &part2_compute), 2);
 }
 
 #[test]
 fn answer() {
     let input: &str = include_str!("../../inputs/day9.txt");
-    assert_eq!(part1(input), 1842168671);
-    assert_eq!(part2(input), 903);
+    assert_eq!(solve_with(input, &part1_compute), 1842168671);
+    assert_eq!(solve_with(input, &part2_compute), 903);
 }
