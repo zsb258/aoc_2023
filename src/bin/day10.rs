@@ -4,16 +4,15 @@ const START: (usize, usize) = (90, 62); // from input
 
 fn main() {
     let input: &str = include_str!("../../inputs/day10.txt");
-    println!("Part1: {}", part1(input));
+    println!("Part1: {}", part1(input, START));
     println!("Part2: {}", part2(input, START));
 }
 
-fn part1(input: &str) -> u64 {
+fn part1(input: &str, start: (usize, usize)) -> u64 {
     let grid = input
         .lines()
         .map(|l| l.chars().collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    let start = if grid.len() == 140 { START } else { (2, 0) }; // from example and actual inputs
 
     bfs(&grid, start).0 as u64
 }
@@ -26,11 +25,6 @@ fn part2(input: &str, start: (usize, usize)) -> u64 {
 
     let (_, steps, end) = bfs(&grid, start);
     let mut is_route = vec![vec![false; grid[0].len()]; grid.len()];
-    is_route[start.0][start.1] = true;
-    is_route[end.0][end.1] = true;
-
-    dbg!(&steps);
-    dbg!(&end);
 
     let mut queue: VecDeque<(usize, usize)> = VecDeque::new();
     queue.push_back(end);
@@ -72,27 +66,12 @@ fn part2(input: &str, start: (usize, usize)) -> u64 {
         }
     }
 
-    dbg!(&is_route);
     let mut grid = grid.clone();
     let s_type = {
-        let north = if start.0 > 0 && is_facing('S', grid[start.0 - 1][start.1]) {
-            true
-        } else {
-            false
-        };
-        let south = if start.0 + 1 < grid.len() && is_facing('N', grid[start.0 + 1][start.1]) {
-            true
-        } else {
-            false
-        };
-        let east = if start.1 + 1 < grid[0].len() && is_facing('W', grid[start.0][start.1 + 1]) {
-            true
-        } else {
-            false
-        };
+        let north = start.0 > 0 && is_facing('S', grid[start.0 - 1][start.1]);
+        let south = start.0 + 1 < grid.len() && is_facing('N', grid[start.0 + 1][start.1]);
+        let east = start.1 + 1 < grid[0].len() && is_facing('W', grid[start.0][start.1 + 1]);
         let west = start.1 > 0 && is_facing('E', grid[start.0][start.1 - 1]);
-
-        dbg!("start", (north, south, east, west));
 
         match (north, south, east, west) {
             (true, false, true, false) => 'L',
@@ -108,8 +87,6 @@ fn part2(input: &str, start: (usize, usize)) -> u64 {
     for r in 0..is_route.len() {
         for c in 0..is_route[0].len() {
             if !is_route[r][c] {
-                let dbg_flag = (r, c) == (4, 7);
-
                 let mut i = r;
                 let mut j = c;
 
@@ -120,38 +97,25 @@ fn part2(input: &str, start: (usize, usize)) -> u64 {
                     i -= 1;
                     if is_route[i][j] {
                         match grid[i][j] {
-                            'S' => {
-                                if prev_corner.is_none() {
-                                    prev_corner = Some('S');
-                                } else {
-                                    prev_corner.take();
-                                    edge_count += 1;
-                                }
-                            }
                             ch if ch == 'L' || ch == 'J' => {
                                 prev_corner = Some(ch);
                             }
-                            '7' => match prev_corner.take() {
-                                Some('L') | Some('S') => edge_count += 1,
-                                _ => (),
-                            },
-
-                            'F' => match prev_corner.take() {
-                                Some('J') | Some('S') => {
+                            '7' => {
+                                if let Some('L') = prev_corner.take() {
                                     edge_count += 1;
                                 }
-                                _ => (),
-                            },
-
+                            }
+                            'F' => {
+                                if let Some('J') = prev_corner.take() {
+                                    edge_count += 1;
+                                }
+                            }
                             '-' => edge_count += 1,
                             _ => {}
                         }
                     }
                 }
                 let north = edge_count > 0 && edge_count % 2 == 1;
-                if dbg_flag {
-                    dbg!(north, edge_count, prev_corner);
-                }
 
                 i = r;
                 edge_count = 0;
@@ -160,38 +124,25 @@ fn part2(input: &str, start: (usize, usize)) -> u64 {
                     i += 1;
                     if is_route[i][j] {
                         match grid[i][j] {
-                            'S' => {
-                                if prev_corner.is_none() {
-                                    prev_corner = Some('S');
-                                } else {
-                                    prev_corner.take();
-                                    edge_count += 1;
-                                }
-                            }
                             ch if ch == '7' || ch == 'F' => {
                                 prev_corner = Some(ch);
                             }
-                            'L' => match prev_corner.take() {
-                                Some('7') | Some('S') => edge_count += 1,
-                                _ => (),
-                            },
-
-                            'J' => match prev_corner.take() {
-                                Some('F') | Some('S') => {
+                            'L' => {
+                                if let Some('7') = prev_corner.take() {
                                     edge_count += 1;
                                 }
-                                _ => (),
-                            },
-
+                            }
+                            'J' => {
+                                if let Some('F') = prev_corner.take() {
+                                    edge_count += 1;
+                                }
+                            }
                             '-' => edge_count += 1,
                             _ => {}
                         }
                     }
                 }
                 let south = edge_count > 0 && edge_count % 2 == 1;
-                if dbg_flag {
-                    dbg!(south, edge_count, prev_corner);
-                }
 
                 i = r;
                 edge_count = 0;
@@ -200,38 +151,25 @@ fn part2(input: &str, start: (usize, usize)) -> u64 {
                     j -= 1;
                     if is_route[i][j] {
                         match grid[i][j] {
-                            'S' => {
-                                if prev_corner.is_none() {
-                                    prev_corner = Some('S');
-                                } else {
-                                    prev_corner.take();
-                                    edge_count += 1;
-                                }
-                            }
                             ch if ch == '7' || ch == 'J' => {
                                 prev_corner = Some(ch);
                             }
-                            'L' => match prev_corner.take() {
-                                Some('7') | Some('S') => edge_count += 1,
-                                _ => (),
-                            },
-
-                            'F' => match prev_corner.take() {
-                                Some('J') | Some('S') => {
+                            'L' => {
+                                if let Some('7') = prev_corner.take() {
                                     edge_count += 1;
                                 }
-                                _ => (),
-                            },
-
+                            }
+                            'F' => {
+                                if let Some('J') = prev_corner.take() {
+                                    edge_count += 1;
+                                }
+                            }
                             '|' => edge_count += 1,
                             _ => {}
                         }
                     }
                 }
                 let west = edge_count > 0 && edge_count % 2 == 1;
-                if dbg_flag {
-                    dbg!(west, edge_count, prev_corner);
-                }
 
                 j = c;
                 edge_count = 0;
@@ -240,46 +178,27 @@ fn part2(input: &str, start: (usize, usize)) -> u64 {
                     j += 1;
                     if is_route[i][j] {
                         match grid[i][j] {
-                            'S' => {
-                                if prev_corner.is_none() {
-                                    prev_corner = Some('S');
-                                } else {
-                                    prev_corner.take();
-                                    edge_count += 1;
-                                }
-                            }
                             ch if ch == 'L' || ch == 'F' => {
                                 prev_corner = Some(ch);
                             }
-                            '7' => match prev_corner.take() {
-                                Some('L') | Some('S') => edge_count += 1,
-                                _ => (),
-                            },
-
-                            'J' => match prev_corner.take() {
-                                Some('F') | Some('S') => {
+                            '7' => {
+                                if let Some('L') = prev_corner.take() {
                                     edge_count += 1;
                                 }
-                                _ => (),
-                            },
-
+                            }
+                            'J' => {
+                                if let Some('F') = prev_corner.take() {
+                                    edge_count += 1;
+                                }
+                            }
                             '|' => edge_count += 1,
                             _ => {}
                         }
                     }
                 }
                 let east = edge_count > 0 && edge_count % 2 == 1;
-                if dbg_flag {
-                    dbg!(east, edge_count, prev_corner);
-                }
 
-                if dbg_flag {
-                    dbg!((r, c, north, south, east, west));
-                }
-                if north && south && east && west {
-                    dbg!("Inside", (r, c));
-                }
-                count += if north && south && east && west { 1 } else { 0 };
+                count += if north && south && west && east { 1 } else { 0 };
             }
         }
     }
@@ -355,7 +274,7 @@ fn part1_example() {
 SJ.L7
 |F--J
 LJ...";
-    assert_eq!(part1(example), 8);
+    assert_eq!(part1(example, (2, 0)), 8);
 }
 
 #[test]
@@ -415,6 +334,6 @@ L7JLJL-JLJLJL--JLJ.L";
 #[test]
 fn answer() {
     let input: &str = include_str!("../../inputs/day10.txt");
-    assert_eq!(part1(input), 6800);
-    // assert_eq!(part2(input), 49240091);
+    assert_eq!(part1(input, START), 6800);
+    assert_eq!(part2(input, START), 483);
 }
