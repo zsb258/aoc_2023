@@ -4,7 +4,10 @@ fn main() {
     println!("Part2: {}", part2(input));
 }
 
-fn part1(input: &str) -> usize {
+fn solve_with(
+    input: &str,
+    solver: &dyn Fn(Vec<Vec<char>>) -> (Option<usize>, Option<usize>),
+) -> usize {
     input
         .split("\n\n")
         .map(|raw| {
@@ -12,109 +15,67 @@ fn part1(input: &str) -> usize {
                 .map(|l| l.chars().collect::<Vec<_>>())
                 .collect::<Vec<_>>()
         })
-        .map(|grid| compute(&grid, (None, None)))
+        .map(solver)
         .fold(0, |acc, (row, col)| match (row, col) {
             (Some(r), None) => acc + r * 100,
             (None, Some(c)) => acc + c,
             _ => unreachable!(),
         })
+}
+
+fn part1(input: &str) -> usize {
+    solve_with(input, &|grid| compute(&grid, (None, None)))
+}
+
+fn part2(input: &str) -> usize {
+    solve_with(input, &|grid| compute2(&grid))
 }
 
 fn compute(
     grid: &[Vec<char>],
     original: (Option<usize>, Option<usize>),
 ) -> (Option<usize>, Option<usize>) {
-    // dbg!(grid);
-    let mut row: Option<usize> = None;
-    for i in 1..grid.len() {
-        let mut ok = true;
-        let mut t = i - 1;
-        let mut b = i;
-        while t >= 0 && b < grid.len() {
-            let flag = grid[t].iter().zip(grid[b].iter()).all(|(a, b)| a == b);
-            if flag {
-                if t == 0 {
-                    break;
-                }
-                t -= 1;
-                b += 1;
-            } else {
-                ok = false;
-                break;
-            }
-        }
+    let row = (1..grid.len()).find(|&i| {
+        let ok = (0..(i.min(grid.len() - i))).all(|di| {
+            grid[i - di - 1]
+                .iter()
+                .zip(grid[i + di].iter())
+                .all(|(a, b)| a == b)
+        });
         if ok {
             if let Some(r) = original.0 {
                 if r != i {
-                    row = Some(i);
-                    break;
+                    return true;
                 }
             } else {
-                row = Some(i);
-                break;
+                return true;
             }
         }
-    }
 
-    let mut col: Option<usize> = None;
-    for j in 1..grid[0].len() {
-        let mut ok = true;
-        let mut l = j - 1;
-        let mut r = j;
-        while l >= 0 && r < grid[0].len() {
-            let flag = grid.iter().all(|row| row[l] == row[r]);
-            if flag {
-                if l == 0 {
-                    break;
-                }
-                l -= 1;
-                r += 1;
-            } else {
-                ok = false;
-                break;
-            }
-        }
+        false
+    });
+
+    let col = (1..grid[0].len()).find(|&j| {
+        let ok = (0..(j.min(grid[0].len() - j)))
+            .all(|dj| grid.iter().all(|row| row[j - dj - 1] == row[j + dj]));
         if ok {
             if let Some(c) = original.1 {
                 if c != j {
-                    col = Some(j);
-                    break;
+                    return true;
                 }
             } else {
-                col = Some(j);
-                break;
+                return true;
             }
         }
-    }
 
-    // dbg!(row, col);
+        false
+    });
 
     (row, col)
 }
 
-fn part2(input: &str) -> usize {
-    input
-        .split("\n\n")
-        .map(|raw| {
-            raw.lines()
-                .map(|l| l.chars().collect::<Vec<_>>())
-                .collect::<Vec<_>>()
-        })
-        .map(|grid| {
-            let tmp = compute2(&grid);
-            dbg!(&tmp);
-            tmp
-        })
-        .fold(0, |acc, (row, col)| match (row, col) {
-            (Some(r), None) => acc + r * 100,
-            (None, Some(c)) => acc + c,
-            _ => unreachable!(),
-        })
-}
-
 fn compute2(grid: &[Vec<char>]) -> (Option<usize>, Option<usize>) {
     let original = compute(grid, (None, None));
-    dbg!(&original);
     let mut new_grid = grid.to_owned().to_vec();
     for i in 0..grid.len() {
         for j in 0..grid[0].len() {
@@ -124,61 +85,16 @@ fn compute2(grid: &[Vec<char>]) -> (Option<usize>, Option<usize>) {
                 _ => unreachable!(),
             };
 
-            if i == 12 && j == 6 {
-                dbg!(&new_grid);
-                dbg!(compute(&new_grid, original));
-            }
-
             match compute(&new_grid, original) {
-                (Some(r), Some(c)) => match original {
-                    (Some(ori_r), None) => {
-                        dbg!((i, j));
-                        if ori_r == r {
-                            return (None, Some(c));
-                        } else {
-                            return (Some(r), None);
-                        }
-                    }
-                    (None, Some(ori_c)) => {
-                        dbg!((i, j));
-                        if ori_c == c {
-                            return (Some(r), None);
-                        } else {
-                            return (None, Some(c));
-                        }
-                    }
-                    _ => unreachable!(),
-                },
-                (Some(r), None) => {
-                    if let Some(ori_r) = original.0 {
-                        if ori_r != r {
-                            dbg!((i, j));
-                            return (Some(r), None);
-                        }
-                    } else {
-                        dbg!((i, j));
-                        return (Some(r), None);
-                    }
-                }
-                (None, Some(c)) => {
-                    if let Some(ori_c) = original.1 {
-                        if ori_c != c {
-                            dbg!((i, j));
-                            return (None, Some(c));
-                        }
-                    } else {
-                        dbg!((i, j));
-                        return (None, Some(c));
-                    }
-                }
+                (Some(r), None) => return (Some(r), None),
+                (None, Some(c)) => return (None, Some(c)),
                 (None, None) => (),
+                (Some(_), Some(_)) => unreachable!(),
             }
 
             new_grid[i][j] = grid[i][j];
         }
     }
-
-    dbg!(&new_grid);
 
     unreachable!()
 }
