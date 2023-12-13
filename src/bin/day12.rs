@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use combination::v2::{Combine, Selector};
-
 fn main() {
     let input: &str = include_str!("../../inputs/day12.txt");
     println!("Part1: {}", part1(input));
@@ -21,10 +19,14 @@ enum Status {
     Damage,
 }
 
-fn part1(input: &str) -> u64 {
-    let rows = input.lines().map(|line| {
-        let (left, right) = line.split_once(' ').unwrap();
-        let records = left
+fn parse<'a>(input: &'a str, duplicates: &'a u32) -> impl Iterator<Item = Row> + 'a {
+    input.lines().map(|line| {
+        let (left, ori_right) = line.split_once(' ').unwrap();
+
+        let records = (0..*duplicates)
+            .map(|_| left.to_string())
+            .collect::<Vec<String>>()
+            .join("?")
             .chars()
             .map(|c| match c {
                 '?' => Status::Unknown,
@@ -33,129 +35,35 @@ fn part1(input: &str) -> u64 {
                 _ => unreachable!(),
             })
             .collect::<Vec<_>>();
-        let rules = right
+
+        let rules = (0..*duplicates)
+            .map(|_| ori_right.to_string())
+            .collect::<Vec<String>>()
+            .join(",")
             .split(',')
             .map(|rule| rule.parse::<usize>().unwrap())
             .collect::<Vec<_>>();
+
         Row { records, rules }
-    });
-
-    let mut memo: HashMap<(usize, usize, usize), u64> = HashMap::new();
-
-    rows.map(|row| {
-        memo.clear();
-        dp(&row.records, None, &row.rules, &mut memo)
     })
-    .sum()
+}
+
+fn part1(input: &str) -> u64 {
+    parse(input, &1)
+        .map(|row| {
+            let mut memo: HashMap<(usize, usize, usize), u64> = HashMap::new();
+            dp(&row.records, None, &row.rules, &mut memo)
+        })
+        .sum()
 }
 
 fn part2(input: &str) -> u64 {
-    let rows = input.lines().map(|line| {
-        let (ori_left, ori_right) = line.split_once(' ').unwrap();
-        let left = (0..5)
-            .map(|_| ori_left.to_string())
-            .collect::<Vec<String>>()
-            .join("?");
-        let right = (0..5)
-            .map(|_| ori_right.to_string())
-            .collect::<Vec<String>>()
-            .join(",");
-
-        let records = left
-            .chars()
-            .map(|c| match c {
-                '?' => Status::Unknown,
-                '.' => Status::Op,
-                '#' => Status::Damage,
-                _ => unreachable!(),
-            })
-            .collect::<Vec<_>>();
-        let rules = right
-            .split(',')
-            .map(|rule| rule.parse::<usize>().unwrap())
-            .collect::<Vec<_>>();
-
-        Row { records, rules }
-    });
-
-    let mut memo: HashMap<(usize, usize, usize), u64> = HashMap::new();
-
-    rows.map(|row| {
-        memo.clear();
-        dp(&row.records, None, &row.rules, &mut memo)
-    })
-    .sum()
-}
-
-/// brute force
-fn _compute_row(row: &Row) -> u64 {
-    use Status as S;
-    let remain: usize =
-        row.rules.iter().sum::<usize>() - row.records.iter().filter(|x| **x == S::Damage).count();
-    if remain == 0 {
-        return 1;
-    }
-
-    let unknowns = row.records.iter().filter(|x| **x == S::Unknown).count();
-
-    let mut sum = 0;
-
-    let combi = Combine::new(unknowns, remain);
-
-    for comb in combi.select_mode() {
-        let mut records = row.records.clone();
-        let mut comb_idx = 0;
-        let mut unknown_count = 0;
-
-        for i in 0..row.records.len() {
-            if row.records[i] == S::Unknown {
-                if comb[comb_idx] == unknown_count {
-                    records[i] = S::Damage;
-                    if comb_idx < comb.len() - 1 {
-                        comb_idx += 1;
-                    } else {
-                        break;
-                    }
-                } else {
-                    records[i] = S::Op;
-                };
-                unknown_count += 1;
-            }
-        }
-        assert_eq!(comb_idx, comb.len() - 1);
-
-        let mut flag = true;
-        let mut partial_sum = 0;
-        let mut j = 0;
-        let mut check = vec![];
-        while j < records.len() {
-            if records[j] == S::Damage {
-                partial_sum += 1;
-            } else {
-                if partial_sum != 0 {
-                    if partial_sum != row.rules[check.len()] {
-                        flag = false;
-                        break;
-                    }
-                    check.push(partial_sum);
-                }
-                partial_sum = 0;
-            }
-            j += 1;
-        }
-        if partial_sum != 0 {
-            if partial_sum != row.rules[check.len()] {
-                flag = false;
-            }
-            check.push(partial_sum);
-        }
-
-        if flag {
-            sum += 1;
-        }
-    }
-
-    sum
+    parse(input, &5)
+        .map(|row| {
+            let mut memo: HashMap<(usize, usize, usize), u64> = HashMap::new();
+            dp(&row.records, None, &row.rules, &mut memo)
+        })
+        .sum()
 }
 
 fn dp(
@@ -167,7 +75,6 @@ fn dp(
     use Status as S;
 
     if records.is_empty() {
-        dbg!(records, consect_count, rules);
         if let Some(x) = consect_count {
             if rules.len() == 1 && x == rules[0] {
                 return 1;
@@ -222,7 +129,6 @@ fn dp(
 
     memo.insert(key, ret);
 
-    dbg!(records, consect_count, rules, ret);
     ret
 }
 
