@@ -13,95 +13,125 @@ fn to_grid(input: &str) -> Vec<Vec<char>> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct Beam {
     pos: (usize, usize),
-    dir: (isize, isize),
+    dir: Dir,
+}
+
+impl Beam {
+    fn new(pos: (usize, usize), dir: Dir) -> Self {
+        Self { pos, dir }
+    }
+
+    fn step_checked(&self, max_r: usize, max_c: usize) -> Option<Self> {
+        let (r, c) = self.pos;
+        let (dr, dc) = self.dir.as_tuple();
+        if r as isize + dr < 0
+            || r as isize + dr >= max_r as isize
+            || c as isize + dc < 0
+            || c as isize + dc >= max_c as isize
+        {
+            None
+        } else {
+            Some(Self {
+                pos: (
+                    (self.pos.0 as isize + dr) as usize,
+                    (self.pos.1 as isize + dc) as usize,
+                ),
+                dir: self.dir,
+            })
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum Dir {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl Dir {
+    /// forward slash
+    fn reflect_forward(&self) -> Self {
+        match self {
+            Self::Up => Self::Right,
+            Self::Down => Self::Left,
+            Self::Left => Self::Down,
+            Self::Right => Self::Up,
+        }
+    }
+
+    /// back slash
+    fn reflect_backward(&self) -> Self {
+        match self {
+            Self::Up => Self::Left,
+            Self::Down => Self::Right,
+            Self::Left => Self::Up,
+            Self::Right => Self::Down,
+        }
+    }
+
+    fn as_tuple(&self) -> (isize, isize) {
+        match self {
+            Self::Up => (-1, 0),
+            Self::Down => (1, 0),
+            Self::Left => (0, -1),
+            Self::Right => (0, 1),
+        }
+    }
 }
 
 fn one_beam(grid: &[Vec<char>], start: Beam) -> usize {
+    let mut seen = vec![vec![false; grid[0].len()]; grid.len()];
+
     let mut history = HashSet::new();
     let mut queue = VecDeque::new();
     queue.push_back(start);
     history.insert(start);
-    let mut seen = vec![vec![false; grid[0].len()]; grid.len()];
 
     while !queue.is_empty() {
-        let beam = queue.pop_front().unwrap();
-        let (mut r, mut c) = beam.pos;
-        seen[r][c] = true;
-        let (mut dr, mut dc) = beam.dir;
+        let mut beam = queue.pop_front().unwrap();
 
         loop {
-            seen[r][c] = true;
-            match grid[r][c] {
-                '.' => {}
+            seen[beam.pos.0][beam.pos.1] = true;
+
+            match grid[beam.pos.0][beam.pos.1] {
+                '.' => (),
                 '/' => {
-                    let temp = dr;
-                    dr = -dc;
-                    dc = -temp;
+                    beam.dir = beam.dir.reflect_forward();
                 }
                 '\\' => {
-                    std::mem::swap(&mut dr, &mut dc);
+                    beam.dir = beam.dir.reflect_backward();
                 }
                 '|' => {
-                    if dr == 0 {
-                        if !history.contains(&Beam {
-                            pos: (r, c),
-                            dir: (-1, 0),
-                        }) {
-                            queue.push_back(Beam {
-                                pos: (r, c),
-                                dir: (-1, 0),
-                            });
-                            history.insert(Beam {
-                                pos: (r, c),
-                                dir: (-1, 0),
-                            });
+                    if beam.dir == Dir::Left || beam.dir == Dir::Right {
+                        let up = Beam::new(beam.pos, Dir::Up);
+                        if !history.contains(&up) {
+                            queue.push_back(up);
+                            history.insert(up);
                         }
 
-                        if !history.contains(&Beam {
-                            pos: (r, c),
-                            dir: (1, 0),
-                        }) {
-                            queue.push_back(Beam {
-                                pos: (r, c),
-                                dir: (1, 0),
-                            });
-                            history.insert(Beam {
-                                pos: (r, c),
-                                dir: (1, 0),
-                            });
+                        let down = Beam::new(beam.pos, Dir::Down);
+                        if !history.contains(&down) {
+                            queue.push_back(down);
+                            history.insert(down);
                         }
 
                         break;
                     }
                 }
                 '-' => {
-                    if dc == 0 {
-                        if !history.contains(&Beam {
-                            pos: (r, c),
-                            dir: (0, -1),
-                        }) {
-                            queue.push_back(Beam {
-                                pos: (r, c),
-                                dir: (0, -1),
-                            });
-                            history.insert(Beam {
-                                pos: (r, c),
-                                dir: (0, -1),
-                            });
+                    if beam.dir == Dir::Up || beam.dir == Dir::Down {
+                        let left = Beam::new(beam.pos, Dir::Left);
+                        if !history.contains(&left) {
+                            queue.push_back(left);
+                            history.insert(left);
                         }
 
-                        if !history.contains(&Beam {
-                            pos: (r, c),
-                            dir: (0, 1),
-                        }) {
-                            queue.push_back(Beam {
-                                pos: (r, c),
-                                dir: (0, 1),
-                            });
-                            history.insert(Beam {
-                                pos: (r, c),
-                                dir: (0, 1),
-                            });
+                        let right = Beam::new(beam.pos, Dir::Right);
+                        if !history.contains(&right) {
+                            queue.push_back(right);
+                            history.insert(right);
                         }
 
                         break;
@@ -109,74 +139,35 @@ fn one_beam(grid: &[Vec<char>], start: Beam) -> usize {
                 }
                 _ => unreachable!(),
             }
-            if r as isize + dr < 0
-                || r as isize + dr >= grid.len() as isize
-                || c as isize + dc < 0
-                || c as isize + dc >= grid[0].len() as isize
-            {
+
+            if let Some(new_beam) = beam.step_checked(grid.len(), grid[0].len()) {
+                beam = new_beam;
+            } else {
                 break;
             }
-            r = (r as isize + dr) as usize;
-            c = (c as isize + dc) as usize;
         }
     }
-
-    // dbg!(&sen);
-    // dbg!(&history);
 
     seen.iter().flatten().filter(|&&b| b).count()
 }
 
 fn part1(input: &str) -> usize {
     let grid = to_grid(input);
-    one_beam(
-        &grid,
-        Beam {
-            pos: (0, 0),
-            dir: (0, 1),
-        },
-    )
+    one_beam(&grid, Beam::new((0, 0), Dir::Right))
 }
 
 fn part2(input: &str) -> usize {
     let grid = to_grid(input);
-    let mut top = (0..grid[0].len()).map(|c| {
-        one_beam(
-            &grid,
-            Beam {
-                pos: (0, c),
-                dir: (1, 0),
-            },
-        )
-    });
 
-    let mut bottom = (0..grid[0].len()).map(|c| {
-        one_beam(
-            &grid,
-            Beam {
-                pos: (grid.len() - 1, c),
-                dir: (-1, 0),
-            },
-        )
-    });
-    let mut left = (0..grid.len()).map(|r| {
-        one_beam(
-            &grid,
-            Beam {
-                pos: (r, 0),
-                dir: (0, 1),
-            },
-        )
-    });
-    let mut right = (0..grid.len()).map(|r| {
-        one_beam(
-            &grid,
-            Beam {
-                pos: (r, grid[0].len() - 1),
-                dir: (0, -1),
-            },
-        )
-    });
+    let top = (0..grid[0].len()).map(|c| one_beam(&grid, Beam::new((0, c), Dir::Down)));
+
+    let bottom =
+        (0..grid[0].len()).map(|c| one_beam(&grid, Beam::new((grid.len() - 1, c), Dir::Up)));
+
+    let left = (0..grid.len()).map(|r| one_beam(&grid, Beam::new((r, 0), Dir::Right)));
+
+    let right =
+        (0..grid.len()).map(|r| one_beam(&grid, Beam::new((r, grid[0].len() - 1), Dir::Left)));
 
     top.chain(bottom).chain(left).chain(right).max().unwrap()
 }
@@ -201,5 +192,5 @@ fn example() {
 fn answer() {
     let input: &str = include_str!("../../inputs/day16.txt");
     assert_eq!(part1(input), 8551);
-    // assert_eq!(part2(input), 215827);
+    assert_eq!(part2(input), 8754);
 }
