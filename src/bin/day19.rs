@@ -24,6 +24,7 @@ impl Cond {
                 _ => unreachable!(),
             }
         }
+
         if let Some((k, v)) = input.split_once('<') {
             Cond::Lt(custom_convert(k), v.parse::<usize>().unwrap())
         } else if let Some((k, v)) = input.split_once('>') {
@@ -126,21 +127,19 @@ fn part1(input: &str) -> usize {
                 }
             }
         })
-        .map(|p| p.iter().sum::<usize>())
+        .flatten()
         .sum()
 }
 
 fn part2(input: &str) -> usize {
-    let val_range = (1, 4000);
     let (workflows, _parts) = parse(input);
 
     let mut accepted = Vec::new();
 
     let mut queue = VecDeque::new();
-    queue.push_back((workflows.get("in").unwrap(), vec![val_range; 4]));
+    queue.push_back((workflows.get("in").unwrap(), vec![(1, 4000); 4]));
 
     while let Some((rules, mut rgs)) = queue.pop_front() {
-        dbg!(&rgs);
         for (cond, flow) in rules {
             let mut tmp = rgs.clone();
             match cond {
@@ -148,41 +147,24 @@ fn part2(input: &str) -> usize {
                     tmp[*i].1 = std::cmp::min(tmp[*i].1, *v - 1);
                     rgs[*i].0 = std::cmp::max(rgs[*i].0, *v);
                 }
-
                 Cond::Gt(i, v) => {
                     tmp[*i].0 = std::cmp::max(tmp[*i].0, *v + 1);
                     rgs[*i].1 = std::cmp::min(rgs[*i].1, *v);
                 }
                 Cond::Nil => (),
             };
-            dbg!(&cond);
-            dbg!(&tmp);
-            dbg!(&flow);
             match flow {
-                Flow::Goto(k) => {
-                    queue.push_back((workflows.get(k).unwrap(), tmp.clone()));
-                }
+                Flow::Goto(k) => queue.push_back((workflows.get(k).unwrap(), tmp.clone())),
                 Flow::Accept => accepted.push(tmp),
                 Flow::Reject => (),
             };
         }
     }
 
-    dbg!("accepted");
-
-    let mut sum = 0;
-    for rg in accepted.iter() {
-        for (l, u) in rg.iter() {
-            print!("({:>4}, {:>4})  ", l, u);
-        }
-        println!();
-
-        sum += rg
-            .iter()
-            .fold(1, |acc, (lower, upper)| acc * (upper - lower + 1));
-    }
-
-    sum
+    accepted
+        .iter()
+        .map(|rgs| rgs.iter().fold(1, |acc, (l, u)| acc * (u - l + 1)))
+        .sum()
 }
 
 #[test]
