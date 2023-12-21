@@ -1,5 +1,6 @@
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::hash_map::{Entry, HashMap};
+use std::collections::{HashSet, VecDeque};
 
 fn main() {
     let input: &str = include_str!("../../inputs/day20.txt");
@@ -7,45 +8,23 @@ fn main() {
     println!("Part2: {}", part2(input));
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 enum Pulse {
     Low,
     High,
 }
 
-#[derive(Debug, Clone)]
-enum Module {
-    FlipFlop(FlipFlop),
-    Conjunction(Conjunction),
-    Broadcaster(Broadcaster),
-}
+trait Module {
+    fn handle_pulse(&self, src: &str, pulse: Pulse)
+        -> Box<dyn Iterator<Item = (&str, Pulse)> + '_>;
 
-impl Module {
-    fn handle_pulse(
-        &self,
-        src: &str,
-        pulse: Pulse,
-    ) -> Box<dyn Iterator<Item = (&str, Pulse)> + '_> {
-        match self {
-            Self::FlipFlop(f) => f.handle_pulse(src, pulse),
-            Self::Conjunction(c) => c.handle_pulse(src, pulse),
-            Self::Broadcaster(b) => b.handle_pulse(src, pulse),
-        }
-    }
+    fn get_dests(&self) -> &[String];
 
-    fn get_dests(&self) -> &[String] {
-        match self {
-            Self::FlipFlop(f) => &f.dests,
-            Self::Conjunction(c) => &c.dests,
-            Self::Broadcaster(b) => &b.dests,
-        }
-    }
+    // using interior mutability
+    fn add_input(&self, _src: &str, _pulse: Pulse) {}
 
-    fn get_recents(&self) -> Option<&RefCell<HashMap<String, Pulse>>> {
-        match self {
-            Self::Conjunction(c) => Some(&c.recents),
-            _ => None,
-        }
+    fn get_inputs(&self) -> Option<Vec<String>> {
+        None
     }
 }
 
@@ -62,7 +41,9 @@ impl FlipFlop {
             dests,
         }
     }
+}
 
+impl Module for FlipFlop {
     fn handle_pulse(
         &self,
         _src: &str,
@@ -87,34 +68,36 @@ impl FlipFlop {
             }
         }
     }
+
+    fn get_dests(&self) -> &[String] {
+        &self.dests
+    }
 }
 
 #[derive(Debug, Clone)]
 struct Conjunction {
-    recents: RefCell<HashMap<String, Pulse>>,
+    inputs: RefCell<HashMap<String, Pulse>>,
     dests: Vec<String>,
 }
 
 impl Conjunction {
     fn new(dests: Vec<String>) -> Self {
         Self {
-            recents: RefCell::new(HashMap::new()),
+            inputs: RefCell::new(HashMap::new()),
             dests,
         }
     }
+}
 
-    fn add_input(&self, src: &str, pulse: Pulse) {
-        self.recents.borrow_mut().insert(src.to_string(), pulse);
-    }
-
+impl Module for Conjunction {
     fn handle_pulse(
         &self,
         src: &str,
         pulse: Pulse,
     ) -> Box<dyn Iterator<Item = (&str, Pulse)> + '_> {
-        self.recents.borrow_mut().insert(src.to_string(), pulse);
+        self.inputs.borrow_mut().insert(src.to_string(), pulse);
 
-        let result_pulse = if self.recents.borrow().values().all(|&p| p == Pulse::High) {
+        let result_pulse = if self.inputs.borrow().values().all(|&p| p == Pulse::High) {
             Pulse::Low
         } else {
             Pulse::High
@@ -124,6 +107,25 @@ impl Conjunction {
             self.dests
                 .iter()
                 .map(move |dest| (dest.as_str(), result_pulse)),
+        )
+    }
+
+    fn get_dests(&self) -> &[String] {
+        &self.dests
+    }
+
+    fn add_input(&self, src: &str, pulse: Pulse) {
+        self.inputs.borrow_mut().insert(src.to_string(), pulse);
+    }
+
+    fn get_inputs(&self) -> Option<Vec<String>> {
+        Some(
+            self.inputs
+                .borrow()
+                .clone()
+                .keys()
+                .map(String::from)
+                .collect::<Vec<_>>(),
         )
     }
 }
@@ -137,7 +139,9 @@ impl Broadcaster {
     fn new(dests: Vec<String>) -> Self {
         Self { dests }
     }
+}
 
+impl Module for Broadcaster {
     fn handle_pulse(
         &self,
         _src: &str,
@@ -145,11 +149,13 @@ impl Broadcaster {
     ) -> Box<dyn Iterator<Item = (&str, Pulse)> + '_> {
         Box::new(self.dests.iter().map(move |dest| (dest.as_str(), pulse)))
     }
+
+    fn get_dests(&self) -> &[String] {
+        &self.dests
+    }
 }
 
-use Module as M;
-
-fn parse(input: &str) -> HashMap<String, Module> {
+fn parse(input: &str) -> HashMap<String, Box<dyn Module>> {
     let mut modules = HashMap::new();
     let mut conjuctions = HashSet::new();
 
@@ -157,12 +163,21 @@ fn parse(input: &str) -> HashMap<String, Module> {
         let (src, dest) = line.split_once(" -> ").unwrap();
         let dest = dest.split(", ").map(|s| s.to_string()).collect();
         let (k, v) = match src.chars().next().unwrap() {
-            '%' => (src[1..].to_string(), M::FlipFlop(FlipFlop::new(dest))),
+            '%' => (
+                src[1..].to_string(),
+                Box::new(FlipFlop::new(dest)) as Box<dyn Module>,
+            ),
             '&' => {
                 conjuctions.insert(&src[1..]);
-                (src[1..].to_string(), M::Conjunction(Conjunction::new(dest)))
+                (
+                    src[1..].to_string(),
+                    Box::new(Conjunction::new(dest)) as Box<dyn Module>,
+                )
             }
-            _ => (src.to_string(), M::Broadcaster(Broadcaster::new(dest))),
+            _ => (
+                src.to_string(),
+                Box::new(Broadcaster::new(dest)) as Box<dyn Module>,
+            ),
         };
         modules.insert(k, v);
     });
@@ -173,9 +188,10 @@ fn parse(input: &str) -> HashMap<String, Module> {
             .iter()
             .filter(|dest| conjuctions.contains(dest.as_str()))
             .for_each(|dest| {
-                if let M::Conjunction(conj) = modules.get(dest).unwrap() {
-                    (*conj).add_input(id.as_str(), Pulse::Low);
-                }
+                modules
+                    .get(dest)
+                    .unwrap()
+                    .add_input(id.as_str(), Pulse::Low);
             });
     });
 
@@ -183,7 +199,8 @@ fn parse(input: &str) -> HashMap<String, Module> {
 }
 
 fn part1(input: &str) -> usize {
-    let modules = parse(input);
+    #[allow(unused_mut)] // Module has interior mutability
+    let mut modules = parse(input);
 
     (0..1000)
         .fold([0, 0], |mut acc, _| {
@@ -210,52 +227,53 @@ fn part1(input: &str) -> usize {
 }
 
 fn part2(input: &str) -> usize {
-    let modules = parse(input);
-    let mut target_input_ids = {
-        // assumes only one conjunction feeds into rx
-        let (pre_rx, pre_rx_conj) = &modules
-            .iter()
-            .find(|(_, module)| module.get_dests().iter().any(|dest| dest == "rx"))
-            .unwrap();
+    #[allow(unused_mut)] // Module has interior mutability
+    let mut modules = parse(input);
 
-        pre_rx_conj
-            .get_recents()
-            .unwrap()
-            .borrow()
-            .keys()
-            .map(|s| ((s.clone(), (*pre_rx).clone()), None))
-            .collect::<HashMap<_, _>>()
-    };
+    // assumes only one conjunction feeds into rx
+    let (pre_rx, pre_rx_conj) = &modules
+        .iter()
+        .find(|(_, module)| module.get_dests().iter().any(|dest| dest == "rx"))
+        .unwrap();
 
-    let mut ready = Vec::new();
+    // appeasing the borrow checker
+    let binding = pre_rx_conj.get_inputs().unwrap();
+    let mut targets: HashMap<_, Option<usize>> = binding
+        .iter()
+        .map(|s| ((s.as_str(), (*pre_rx).as_str()), None))
+        .collect::<HashMap<_, _>>();
+
+    let mut found = Vec::new();
     let mut curr = 0;
 
     loop {
         let mut queue = VecDeque::new();
         queue.push_back(("", "broadcaster", Pulse::Low));
         curr += 1;
+
         while let Some((src, dest, pulse)) = queue.pop_front() {
-            let key = (src.to_string(), dest.to_string());
-            if target_input_ids.contains_key(&key) && pulse == Pulse::High {
-                match target_input_ids.get(&key).unwrap() {
-                    Some(prev) => {
-                        let new = num::integer::lcm(*prev, curr);
-                        if new == curr {
-                            // cycle found
-                            ready.push(*prev);
-                            target_input_ids.remove(&key);
-                        } else {
-                            target_input_ids.insert(key, Some(new));
+            if let Entry::Occupied(mut o) = targets.entry((src, dest)) {
+                if pulse == Pulse::High {
+                    match o.get() {
+                        Some(prev) => {
+                            let new = num::integer::lcm(*prev, curr);
+                            if new == curr {
+                                // cycle found
+                                found.push(*prev);
+                                o.remove();
+                            } else {
+                                o.insert(Some(new));
+                            }
                         }
-                    }
-                    None => {
-                        target_input_ids.insert(key, Some(curr));
+                        None => {
+                            o.insert(Some(curr));
+                        }
                     }
                 }
             }
 
-            if target_input_ids.is_empty() {
-                return ready.into_iter().fold(1, num::integer::lcm);
+            if targets.is_empty() {
+                return found.into_iter().fold(1, num::integer::lcm);
             }
 
             if let Some(module) = modules.get(&dest.to_string()) {
