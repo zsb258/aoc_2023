@@ -1,10 +1,11 @@
-use std::collections::hash_map::{Entry, HashMap};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 
 fn main() {
     let input: &str = include_str!("../../inputs/day22.txt");
-    println!("Part1: {}", part1(input));
-    println!("Part2: {}", part2(input));
+    let (bricks_stable, mut overlap_memo) = preprocess(input);
+    println!("Part1: {}", part1(&bricks_stable, &mut overlap_memo));
+    // brute force: runs in 30 seconds
+    println!("Part2: {}", part2(&bricks_stable, &mut overlap_memo));
 }
 
 type Coord = (usize, usize, usize);
@@ -16,123 +17,153 @@ struct Brick {
 }
 
 fn parse(input: &str) -> Vec<Brick> {
-    // (lower, upper)
     input
         .lines()
         .map(|line| {
-            let (a, b) = line.split_once('~').unwrap();
-
-            let a = a
-                .split(',')
-                .map(|s| s.parse::<usize>().unwrap())
+            let coords = line
+                .splitn(2, '~')
+                .map(|s| {
+                    match s
+                        .split(',')
+                        .map(|s| s.parse::<usize>().unwrap())
+                        .collect::<Vec<_>>()[..]
+                    {
+                        [x, y, z] => (x, y, z),
+                        _ => unreachable!(),
+                    }
+                })
                 .collect::<Vec<_>>();
-            let a = (a[0], a[1], a[2]);
 
-            let b = b
-                .split(',')
-                .map(|s| s.parse::<usize>().unwrap())
-                .collect::<Vec<_>>();
-            let b = (b[0], b[1], b[2]);
-
-            if b.2 < a.2 {
-                Brick { lower: b, upper: a }
+            if coords[0].2 < coords[1].2 {
+                Brick {
+                    lower: coords[0],
+                    upper: coords[1],
+                }
             } else {
-                Brick { lower: a, upper: b }
+                Brick {
+                    lower: coords[1],
+                    upper: coords[0],
+                }
             }
         })
         .collect()
 }
 
-fn move_bricks(bricks_snapshot: &mut [Brick]) -> (&mut [Brick], usize) {
-    let mut moving = vec![true; bricks_snapshot.len()];
+fn preprocess(input: &str) -> (Vec<Brick>, HashMap<(usize, usize), bool>) {
+    let mut bricks_snapshot = parse(input);
+    bricks_snapshot.sort_by_key(|Brick { lower, upper }| (lower.2, upper.2));
+
+    let mut overlap_memo = HashMap::new();
+    let (bricks_stable, _) = freefall(&mut bricks_snapshot, &mut overlap_memo, None);
+
+    (bricks_stable, overlap_memo)
+}
+
+fn is_xy_overlap(brick: &Brick, other: &Brick) -> bool {
+    let x_overlap = {
+        let ox = if other.lower.0 < other.upper.0 {
+            (other.lower.0, other.upper.0)
+        } else {
+            (other.upper.0, other.lower.0)
+        };
+        let bx = if brick.lower.0 < brick.upper.0 {
+            (brick.lower.0, brick.upper.0)
+        } else {
+            (brick.upper.0, brick.lower.0)
+        };
+
+        ox.0.max(bx.0) <= ox.1.min(bx.1)
+    };
+
+    let y_overlap = {
+        let oy = if other.lower.1 < other.upper.1 {
+            (other.lower.1, other.upper.1)
+        } else {
+            (other.upper.1, other.lower.1)
+        };
+        let by = if brick.lower.1 < brick.upper.1 {
+            (brick.lower.1, brick.upper.1)
+        } else {
+            (brick.upper.1, brick.lower.1)
+        };
+
+        oy.0.max(by.0) <= oy.1.min(by.1)
+    };
+
+    x_overlap && y_overlap
+}
+
+/// returns bricks in stable positions and the number of bricks that moved
+fn freefall(
+    bricks: &mut [Brick],
+    overlap_memo: &mut HashMap<(usize, usize), bool>,
+    skip_idx: Option<usize>,
+) -> (Vec<Brick>, usize) {
+    let mut moving = vec![true; bricks.len()];
     let mut moved = HashSet::new();
+
+    if let Some(i) = skip_idx {
+        moving[i] = false;
+    }
 
     let mut still_moving = moving.iter().any(|&b| b);
     while still_moving {
-        for i in 0..bricks_snapshot.len() {
+        for i in 0..bricks.len() {
             if !moving[i] {
                 continue;
             }
 
-            let brick = bricks_snapshot[i].clone();
+            let brick = &bricks[i];
             if brick.lower.2 == 1 {
                 moving[i] = false;
                 continue;
             }
 
-            // let mut moving = brick.lower.2 > 1;
-
             for j in 0..i {
                 if moving[j] {
                     continue;
                 }
-                let other = &bricks_snapshot[j];
-                if brick.lower.2 - 1 == other.upper.2 {
-                    let ox = {
-                        if other.lower.0 < other.upper.0 {
-                            (other.lower.0, other.upper.0)
-                        } else {
-                            (other.upper.0, other.lower.0)
-                        }
-                    };
-                    let oy = {
-                        if other.lower.1 < other.upper.1 {
-                            (other.lower.1, other.upper.1)
-                        } else {
-                            (other.upper.1, other.lower.1)
-                        }
-                    };
-                    let bx = {
-                        if brick.lower.0 < brick.upper.0 {
-                            (brick.lower.0, brick.upper.0)
-                        } else {
-                            (brick.upper.0, brick.lower.0)
-                        }
-                    };
-                    let by = {
-                        if brick.lower.1 < brick.upper.1 {
-                            (brick.lower.1, brick.upper.1)
-                        } else {
-                            (brick.upper.1, brick.lower.1)
-                        }
-                    };
-                    let x_overlap = {
-                        let tmp = (ox.0.max(bx.0), ox.1.min(bx.1));
-                        tmp.0 <= tmp.1
-                    };
-                    let y_overlap = {
-                        let tmp = (oy.0.max(by.0), oy.1.min(by.1));
-                        tmp.0 <= tmp.1
-                    };
-                    if x_overlap && y_overlap && !moving[j] {
-                        moving[i] = false;
-                        break;
-                    }
+                match skip_idx {
+                    Some(idx) if idx == j => continue,
+                    _ => (),
+                }
+
+                let other = &bricks[j];
+                if brick.lower.2 - 1 == other.upper.2
+                    && *overlap_memo
+                        .entry((i, j))
+                        .or_insert(is_xy_overlap(brick, other))
+                {
+                    moving[i] = false;
+                    break;
                 }
             }
         }
 
-        for i in 0..bricks_snapshot.len() {
+        for i in 0..bricks.len() {
             if moving[i] {
-                let mut brick = bricks_snapshot[i];
-                brick = Brick {
-                    lower: (brick.lower.0, brick.lower.1, brick.lower.2 - 1),
-                    upper: (brick.upper.0, brick.upper.1, brick.upper.2 - 1),
+                let mut b = bricks[i];
+                b = Brick {
+                    lower: (b.lower.0, b.lower.1, b.lower.2 - 1),
+                    upper: (b.upper.0, b.upper.1, b.upper.2 - 1),
                 };
                 moved.insert(i);
-                if brick.lower.2 == 1 {
+                if b.lower.2 == 1 {
                     moving[i] = false;
                 }
-                bricks_snapshot[i] = brick;
+                bricks[i] = b;
             }
         }
         still_moving = moving.iter().any(|&b| b);
     }
 
-    (bricks_snapshot, moved.len())
+    (bricks.into(), moved.len())
 }
 
-fn check_bricks_support(bricks_stable: &[Brick]) -> (Vec<HashSet<usize>>, Vec<HashSet<usize>>) {
+fn check_bricks_support(
+    bricks_stable: &[Brick],
+    overlap_memo: &mut HashMap<(usize, usize), bool>,
+) -> (Vec<HashSet<usize>>, Vec<HashSet<usize>>) {
     // idx is supporting val_set
     let mut supporting = vec![HashSet::new(); bricks_stable.len()];
 
@@ -140,81 +171,32 @@ fn check_bricks_support(bricks_stable: &[Brick]) -> (Vec<HashSet<usize>>, Vec<Ha
     let mut supported_by = vec![HashSet::new(); bricks_stable.len()];
 
     for i in 0..bricks_stable.len() {
-        let brick = bricks_stable[i].clone();
+        let brick = &bricks_stable[i];
 
         if brick.lower.2 == 1 {
             continue;
         }
 
-        // let mut moving = brick.lower.2 > 1;
-
         for j in 0..i {
             let other = &bricks_stable[j];
-            if brick.lower.2 - 1 == other.upper.2 {
-                let ox = {
-                    if other.lower.0 < other.upper.0 {
-                        (other.lower.0, other.upper.0)
-                    } else {
-                        (other.upper.0, other.lower.0)
-                    }
-                };
-                let oy = {
-                    if other.lower.1 < other.upper.1 {
-                        (other.lower.1, other.upper.1)
-                    } else {
-                        (other.upper.1, other.lower.1)
-                    }
-                };
-                let bx = {
-                    if brick.lower.0 < brick.upper.0 {
-                        (brick.lower.0, brick.upper.0)
-                    } else {
-                        (brick.upper.0, brick.lower.0)
-                    }
-                };
-                let by = {
-                    if brick.lower.1 < brick.upper.1 {
-                        (brick.lower.1, brick.upper.1)
-                    } else {
-                        (brick.upper.1, brick.lower.1)
-                    }
-                };
-                let x_overlap = {
-                    assert!(ox.0 <= ox.1);
-                    assert!(bx.0 <= bx.1);
-
-                    let tmp = (ox.0.max(bx.0), ox.1.min(bx.1));
-                    tmp.0 <= tmp.1
-                };
-                let y_overlap = {
-                    assert!(oy.0 <= oy.1);
-                    assert!(by.0 <= by.1);
-                    let tmp = (oy.0.max(by.0), oy.1.min(by.1));
-                    tmp.0 <= tmp.1
-                };
-                if x_overlap && y_overlap {
-                    supporting[j].insert(i);
-                    supported_by[i].insert(j);
-                }
+            if brick.lower.2 - 1 == other.upper.2
+                && *overlap_memo
+                    .entry((i, j))
+                    .or_insert(is_xy_overlap(brick, other))
+            {
+                supporting[j].insert(i);
+                supported_by[i].insert(j);
             }
         }
     }
 
-    // dbg!(&supporting);
-    // dbg!(&supported_by);
-
     (supporting, supported_by)
 }
 
-fn part1(input: &str) -> usize {
-    let mut bricks_snapshot = parse(input);
-    bricks_snapshot.sort_by_key(|Brick { lower, upper }| (lower.2, upper.2));
+fn part1(bricks_stable: &[Brick], overlap_memo: &mut HashMap<(usize, usize), bool>) -> usize {
+    let (supporting, supported_by) = check_bricks_support(bricks_stable, overlap_memo);
 
-    // println!("bricks sorted {:?}", &bricks);
-    let (bricks_stable, _) = move_bricks(&mut bricks_snapshot);
-    let (supporting, supported_by) = check_bricks_support(bricks_stable);
-
-    (0..bricks_snapshot.len())
+    (0..bricks_stable.len())
         .filter(|&i| {
             if supporting[i].is_empty() {
                 true
@@ -222,36 +204,18 @@ fn part1(input: &str) -> usize {
                 supporting[i].iter().all(|&j| supported_by[j].len() > 1)
             }
         })
-        .map(|i| {
-            dbg!(&i);
-            i
-        })
         .count()
 }
 
-// brute force: runs in 30+ seconds
-fn part2(input: &str) -> usize {
-    let mut bricks_snapshot = parse(input);
-    bricks_snapshot.sort_by_key(|Brick { lower, upper }| (lower.2, upper.2));
-
-    // println!("bricks sorted {:?}", &bricks);
-    let (bricks_stable, _) = move_bricks(&mut bricks_snapshot);
-    let (supporting, supported_by) = check_bricks_support(bricks_stable);
-    println!("supporting {:?}", &supporting);
-    println!("supported_by {:?}", &supported_by);
-
+fn part2(bricks_stable: &[Brick], overlap_memo: &mut HashMap<(usize, usize), bool>) -> usize {
     let mut ret = 0;
 
-    (0..bricks_stable.len()).for_each(|i| {
-        let mut rest = bricks_stable
-            .iter()
-            .enumerate()
-            .filter(|&(j, _)| j != i)
-            .map(|(_, &b)| b)
-            .collect::<Vec<Brick>>();
-        let (_, moved) = move_bricks(&mut rest);
+    let bricks_stable = bricks_stable.to_vec();
+
+    for i in 0..bricks_stable.len() {
+        let (_, moved) = freefall(&mut bricks_stable.clone(), overlap_memo, Some(i));
         ret += moved;
-    });
+    }
 
     ret
 }
@@ -265,13 +229,19 @@ fn example() {
 2,0,5~2,2,5
 0,1,6~2,1,6
 1,1,8~1,1,9";
-    assert_eq!(part1(example), 5);
-    assert_eq!(part2(example), 7);
+
+    let (bricks_stable, mut overlap_memo) = preprocess(example);
+
+    assert_eq!(part1(&bricks_stable, &mut overlap_memo), 5);
+    assert_eq!(part2(&bricks_stable, &mut overlap_memo), 7);
 }
 
 #[test]
 fn answer() {
     let input: &str = include_str!("../../inputs/day22.txt");
-    assert_eq!(part1(input), 448);
-    assert_eq!(part2(input), 57770);
+
+    let (bricks_stable, mut overlap_memo) = preprocess(input);
+
+    assert_eq!(part1(&bricks_stable, &mut overlap_memo), 448);
+    assert_eq!(part2(&bricks_stable, &mut overlap_memo), 57770);
 }
