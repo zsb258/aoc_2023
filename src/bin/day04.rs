@@ -1,5 +1,5 @@
 fn main() {
-    let input: &str = include_str!("../../inputs/day4.txt");
+    let input: &str = include_str!("../../inputs/day04.txt");
     println!("Part1: {}", solve_with(input, &part1_agg));
     println!("Part2: {}", solve_with(input, &part2_agg));
 }
@@ -59,7 +59,7 @@ Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11";
 
 #[test]
 fn answer() {
-    let input: &str = include_str!("../../inputs/day4.txt");
+    let input: &str = include_str!("../../inputs/day04.txt");
     assert_eq!(solve_with(input, &part1_agg), 26914);
     assert_eq!(solve_with(input, &part2_agg), 13080971);
 }

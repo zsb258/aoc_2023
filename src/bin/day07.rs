@@ -68,7 +68,7 @@ impl HandType {
 }
 
 fn main() {
-    let input: &str = include_str!("../../inputs/day7.txt");
+    let input: &str = include_str!("../../inputs/day07.txt");
     println!("Part1: {}", solve_with(input, &part1_char_mapper));
     println!("Part2: {}", solve_with(input, &part2_char_mapper));
 }
@@ -163,7 +163,7 @@ QQQJA 483";
 
 #[test]
 fn answer() {
-    let input: &str = include_str!("../../inputs/day7.txt");
+    let input: &str = include_str!("../../inputs/day07.txt");
     assert_eq!(solve_with(input, &part1_char_mapper), 253933213);
     assert_eq!(solve_with(input, &part2_char_mapper), 253473930);
 }

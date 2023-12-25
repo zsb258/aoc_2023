@@ -1,5 +1,5 @@
 fn main() {
-    let input: &str = include_str!("../../inputs/day9.txt");
+    let input: &str = include_str!("../../inputs/day09.txt");
     println!("Part1: {}", solve_with(input, &part1_compute));
     println!("Part2: {}", solve_with(input, &part2_compute));
 }
@@ -52,7 +52,7 @@ fn example() {
 
 #[test]
 fn answer() {
-    let input: &str = include_str!("../../inputs/day9.txt");
+    let input: &str = include_str!("../../inputs/day09.txt");
     assert_eq!(solve_with(input, &part1_compute), 1842168671);
     assert_eq!(solve_with(input, &part2_compute), 903);
 }

@@ -1,5 +1,5 @@
 fn main() {
-    let input: &str = include_str!("../../inputs/day6.txt");
+    let input: &str = include_str!("../../inputs/day06.txt");
     println!("Part1: {}", part1(input));
     println!("Part2: {}", part2(input));
 }
@@ -56,7 +56,7 @@ Distance:  9  40  200";
 
 #[test]
 fn answer() {
-    let input: &str = include_str!("../../inputs/day6.txt");
+    let input: &str = include_str!("../../inputs/day06.txt");
     assert_eq!(part1(input), 781200);
     assert_eq!(part2(input), 49240091);
 }

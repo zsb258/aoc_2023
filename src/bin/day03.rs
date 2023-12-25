@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 fn main() {
-    let input: &str = include_str!("../../inputs/day3.txt");
+    let input: &str = include_str!("../../inputs/day03.txt");
     println!(
         "Part1: {}",
         solve_with(input, &part1_symbol_predicate, &part1_agg_fn)
@@ -137,7 +137,7 @@ fn example() {
 #[test]
 /// for refractoring
 fn answer() {
-    let input: &str = include_str!("../../inputs/day3.txt");
+    let input: &str = include_str!("../../inputs/day03.txt");
     assert_eq!(
         solve_with(input, &part1_symbol_predicate, &part1_agg_fn),
         525911

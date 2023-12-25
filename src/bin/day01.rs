@@ -1,4 +1,4 @@
-const INPUT: &str = include_str!("../../inputs/day1.txt");
+const INPUT: &str = include_str!("../../inputs/day01.txt");
 
 fn main() {
     println!("Part1: {}", solve_with(&part1_parse_digits));

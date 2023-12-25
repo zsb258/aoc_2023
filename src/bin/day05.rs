@@ -1,5 +1,5 @@
 fn main() {
-    let input: &str = include_str!("../../inputs/day5.txt");
+    let input: &str = include_str!("../../inputs/day05.txt");
     println!("Part1: {}", solve_with(input, &part1_seeds_parser));
     println!("Part2: {}", solve_with(input, &part2_seeds_parser));
 }
@@ -150,7 +150,7 @@ humidity-to-location map:
 
 #[test]
 fn answer() {
-    let input: &str = include_str!("../../inputs/day5.txt");
+    let input: &str = include_str!("../../inputs/day05.txt");
     assert_eq!(solve_with(input, &part1_seeds_parser), 84470622);
     assert_eq!(solve_with(input, &part2_seeds_parser), 26714516);
 }

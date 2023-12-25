@@ -66,7 +66,7 @@ fn traverse(
 }
 
 fn main() {
-    let input: &str = include_str!("../../inputs/day8.txt");
+    let input: &str = include_str!("../../inputs/day08.txt");
     println!("Part1: {}", part1(input));
     println!("Part2: {}", part2(input));
 }
@@ -135,7 +135,7 @@ XXX = (XXX, XXX)";
 
 #[test]
 fn answer() {
-    let input: &str = include_str!("../../inputs/day8.txt");
+    let input: &str = include_str!("../../inputs/day08.txt");
     assert_eq!(part1(input), 16897);
     assert_eq!(part2(input), 16563603485021);
 }
